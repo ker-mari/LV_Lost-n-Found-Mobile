@@ -10,12 +10,12 @@ export default function WelcomeScreen() {
       {/* Top Navigation Bar */}
       <SafeAreaView style={styles.header}>
         <View style={styles.headerContent}>
-          <Image 
-            source={{ uri: 'https://via.placeholder.com/40' }} // Replace with school logo
-            style={styles.logoSmall} 
+          <Image
+            source={require('../../assets/LV-Logo.png')}
+            style={styles.logoSmall}
           />
           <Text style={styles.headerTitle}>
-            LA VERDAD <Text style={{fontWeight: '300'}}>LOST N FOUND</Text>
+            LA VERDAD <Text style={{ fontWeight: '300' }}>LOST N FOUND</Text>
           </Text>
         </View>
       </SafeAreaView>
@@ -26,16 +26,16 @@ export default function WelcomeScreen() {
         style={styles.gradientBackground}
       >
         <View style={styles.content}>
-          
+
           {/* Hero Illustration Area */}
           <View style={styles.imageContainer}>
-             {/* The Navy Blue Squircle Background */}
+            {/* The Navy Blue Squircle Background */}
             <View style={styles.blueShape} />
             {/* Circular Campus Image */}
             <View style={styles.circleImageWrapper}>
-              <Image 
-                source={{ uri: 'https://via.placeholder.com/150' }} // Replace with campus image
-                style={styles.campusImage} 
+              <Image
+                source={require('../../assets/school.png')} // Replace with campus image
+                style={styles.campusImage}
               />
             </View>
           </View>
@@ -44,7 +44,7 @@ export default function WelcomeScreen() {
           <View style={styles.textContainer}>
             <Text style={styles.welcomeText}>Welcome to La Verdad</Text>
             <Text style={styles.mainTitle}>LOST AND FOUND</Text>
-            
+
             <Text style={styles.description}>
               Lost something or found an item on campus?{"\n"}
               We're here to help reunite people and their belongings.
@@ -55,7 +55,7 @@ export default function WelcomeScreen() {
           <TouchableOpacity style={styles.button} activeOpacity={0.8}>
             <Text style={styles.buttonText}>Get Started!</Text>
           </TouchableOpacity>
-          
+
         </View>
       </LinearGradient>
     </View>

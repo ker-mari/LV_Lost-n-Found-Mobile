@@ -3,15 +3,17 @@ import { StyleSheet, Text, View } from 'react-native';
 import WelcomeScreen from './src/screens/WelcomeScreen';
 import PinScreen from './src/screens/PinScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
+import HandOverForm from './src/screens/HandOverForm';
 
 
 export default function App() {
   return (
     <>
-    {/* <WelcomeScreen /> */} 
+    <WelcomeScreen /> 
     {/* Done */}
     {/* <PinScreen /> */}
-    <DashboardScreen />
+    {/* <DashboardScreen /> */}
+    {/* <HandOverForm /> */}
     </>
   );
 }
