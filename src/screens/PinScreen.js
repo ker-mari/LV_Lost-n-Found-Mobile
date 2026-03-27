@@ -76,7 +76,7 @@ export default function PinScreen() {
                 >
                   <Ionicons 
                     // Toggle icon name based on state
-                    name={isPinVisible ? "eye-off-outline" : "eye-outline"} 
+                    name={isPinVisible ? "eye-outline" : "eye-off-outline"} 
                     size={22} 
                     color="#666" 
                   />

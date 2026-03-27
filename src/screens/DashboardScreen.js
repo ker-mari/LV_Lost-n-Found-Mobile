@@ -9,10 +9,10 @@ export default function DashboardScreen() {
       <SafeAreaView style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            <Image 
-              source={{ uri: 'https://via.placeholder.com/40' }} // Replace with school logo asset
-              style={styles.logoSmall} 
-            />
+            <Image
+                        source={require('../../assets/LV-Logo.png')}
+                        style={styles.logoSmall}
+                      />
             <Text style={styles.headerTitle}>
               LA VERDAD <Text style={{fontWeight: '300'}}>LOST N FOUND</Text>
             </Text>
