@@ -1,51 +1,107 @@
-import React, { useState } from 'react'; // 1. Import useState
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  Image, 
-  TextInput, 
-  TouchableOpacity, 
-  SafeAreaView, 
-  KeyboardAvoidingView, 
-  Platform, 
-  TouchableWithoutFeedback, 
-  Keyboard 
+import React, { useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  Image,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // 1. Import AsyncStorage
+import { postData } from '../api';
 
-export default function PinScreen() {
-  // 2. Create state to track visibility
+export default function PinScreen({ navigation }) {
   const [isPinVisible, setIsPinVisible] = useState(false);
+  const [pin, setPin] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleProceed = async () => {
+    if (!pin) {
+      Alert.alert('Error', 'Please enter a PIN.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 2. Capture the response from the backend
+      const response = await postData('/api/auth/verify-pin', { pin });
+
+      console.log("Login Success:", response);
+
+      // 3. CRITICAL: Save the token to local storage. 
+      // We check multiple common key names just in case your backend uses a different one!
+      let token = response.auth_token || response.token || response.access_token || response.data?.token || response.user?.token;
+
+      // If Laravel returned a token object instead of a string, extract the plain text:
+      if (token && typeof token === 'object') {
+        token = token.plainTextToken || token.token || String(token);
+      }
+
+      if (token) {
+        await AsyncStorage.setItem('userToken', token);
+
+        // Optional: Save user name if you want to show "Welcome, [Name]"
+        if (response.user_name) {
+          await AsyncStorage.setItem('userName', response.user_name);
+        }
+
+        // ALWAYS save the raw PIN.
+        await AsyncStorage.setItem('userPin', pin);
+        
+        // Navigate to dashboard ONLY if we have a token
+        navigation.navigate('Dashboard');
+      } else {
+        console.log("Backend Response missing token:", response);
+        Alert.alert(
+          "Backend Fix Required", 
+          "Your Laravel backend did not return an authentication token. Please ask your backend developer to return a token in the verify-pin response."
+        );
+        return; // STOP the user from entering a broken session
+      }
+
+    } catch (error) {
+      console.error("Verification Error:", error);
+      Alert.alert('Verification Failed', error.message || 'Invalid PIN.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <LinearGradient colors={['#E0EAFC', '#3f6b8e']} style={styles.gradient}>
-            
+
             <View style={styles.headerContent}>
-              <Image 
-                source={{ uri: 'https://via.placeholder.com/40' }} 
-                style={styles.logoSmall} 
+              <Image
+                source={require('../../assets/LV-Logo.png')}
+                style={styles.logoSmall}
               />
               <Text style={styles.headerTitle}>
-                LA VERDAD <Text style={{fontWeight: '300'}}>LOST N FOUND</Text>
+                LA VERDAD <Text style={{ fontWeight: '300' }}>LOST N FOUND</Text>
               </Text>
             </View>
 
             <View style={styles.content}>
-              {/* Illustration Section */}
               <View style={styles.imageContainer}>
                 <View style={styles.blueShape} />
                 <View style={styles.circleImageWrapper}>
-                  <Image 
-                    source={{ uri: 'https://via.placeholder.com/150' }} 
-                    style={styles.campusImage} 
+                  <Image
+                    source={require('../../assets/school.png')}
+                    style={styles.campusImage}
                   />
                 </View>
               </View>
@@ -58,33 +114,39 @@ export default function PinScreen() {
                 </Text>
               </View>
 
-              {/* 3. Input Field with Logic */}
               <View style={styles.inputWrapper}>
-                <TextInput 
-                  style={styles.input} 
-                  placeholder="ENTER PIN:" 
+                <TextInput
+                  style={styles.input}
+                  placeholder="ENTER PIN:"
                   placeholderTextColor="#999"
-                  // Use the state here: if isPinVisible is true, secureTextEntry is false
                   secureTextEntry={!isPinVisible}
                   keyboardType="numeric"
+                  value={pin}
+                  onChangeText={setPin}
                 />
-                
-                {/* 4. Toggle Button */}
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={styles.eyeIcon}
-                  onPress={() => setIsPinVisible(!isPinVisible)} // Toggle true/false
+                  onPress={() => setIsPinVisible(!isPinVisible)}
                 >
-                  <Ionicons 
-                    // Toggle icon name based on state
-                    name={isPinVisible ? "eye-outline" : "eye-off-outline"} 
-                    size={22} 
-                    color="#666" 
+                  <Ionicons
+                    name={isPinVisible ? "eye-outline" : "eye-off-outline"}
+                    size={22}
+                    color="#666"
                   />
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity style={styles.proceedButton}>
-                <Text style={styles.proceedText}>Proceed</Text>
+              <TouchableOpacity
+                style={styles.proceedButton}
+                onPress={handleProceed}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#003366" />
+                ) : (
+                  <Text style={styles.proceedText}>Proceed</Text>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -95,10 +157,9 @@ export default function PinScreen() {
   );
 }
 
-// ... styles remain the same as the previous response ...
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#002D52' },
-  headerContent: { flexDirection: 'row', alignItems: 'center', padding: 15, backgroundColor: '#002D52' },
+  headerContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10, backgroundColor: '#002D52' },
   logoSmall: { width: 30, height: 30, marginRight: 10, borderRadius: 15 },
   headerTitle: { color: '#FFF', fontSize: 14, fontWeight: 'bold' },
   gradient: { flex: 1 },
@@ -137,4 +198,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   proceedText: { color: '#003366', fontSize: 16, fontWeight: '600' },
-});
+}); 

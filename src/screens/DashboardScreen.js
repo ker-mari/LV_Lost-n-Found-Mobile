@@ -1,12 +1,25 @@
-import React from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, Image, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function DashboardScreen() {
+export default function DashboardScreen({ navigation }) {
+  const [adminName, setAdminName] = useState('Loading...');
+
+  useEffect(() => {
+    const loadAdminName = async () => {
+      const name = await AsyncStorage.getItem('userName');
+      // Fallback to 'Admin' if no name was returned from the server
+      setAdminName(name || 'Admin');
+    };
+    loadAdminName();
+  }, []);
+
   return (
     <View style={styles.container}>
       {/* Top Header Bar */}
-      <SafeAreaView style={styles.header}>
+      <SafeAreaView style={styles.header} edges={['top']}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <Image
@@ -19,7 +32,13 @@ export default function DashboardScreen() {
           </View>
           
           {/* Logout Button */}
-          <TouchableOpacity style={styles.logoutButton}>
+          <TouchableOpacity 
+            style={styles.logoutButton}
+            onPress={async () => {
+              await AsyncStorage.clear(); // Ensure broken sessions are wiped clean!
+              navigation.replace('Welcome');
+            }}
+          >
             <Text style={styles.logoutText}>LOGOUT</Text>
           </TouchableOpacity>
         </View>
@@ -31,7 +50,7 @@ export default function DashboardScreen() {
           {/* Service Info */}
           <View style={styles.serviceInfo}>
             <Text style={styles.serviceText}>Currently at your service,</Text>
-            <Text style={styles.adminName}>Mrs. Laura Sabillon</Text>
+            <Text style={styles.adminName}>{adminName}</Text>
           </View>
 
           {/* Main Hero Text */}
@@ -45,23 +64,38 @@ export default function DashboardScreen() {
 
           {/* Action Buttons */}
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={[styles.actionButton, styles.blueButton]}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.blueButton]}
+              onPress={() => navigation.navigate('HandOver')}
+            >
               <Text style={styles.buttonText}>Hand Over Item</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionButton, styles.blueButton]}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.blueButton]}
+              onPress={() => navigation.navigate('ViewItem')}
+            >
               <Text style={styles.buttonText}>View Claimable Items</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionButton, styles.blueButton]}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.blueButton]}
+              onPress={() => navigation.navigate('ItemsToClear')}
+            >
               <Text style={styles.buttonText}>Items to be Cleared</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionButton, styles.yellowButton]}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.yellowButton]}
+              onPress={() => navigation.navigate('History')}
+            >
               <Text style={styles.buttonTextBlack}>View History</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionButton, styles.yellowButton]}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.yellowButton]}
+              onPress={() => navigation.navigate('ApprovalQueues')}
+            >
               <Text style={styles.buttonTextBlack}>Approval Queues</Text>
             </TouchableOpacity>
           </View>
@@ -74,13 +108,13 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { backgroundColor: '#002D52', paddingTop: 40 },
+  header: { backgroundColor: '#002D52' },
   headerContent: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between', 
     paddingHorizontal: 20, 
-    paddingVertical: 12 
+    paddingVertical: 10 
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
   logoSmall: { width: 30, height: 30, marginRight: 10, borderRadius: 15 },

@@ -1,14 +1,15 @@
 import React from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity, SafeAreaView, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, Image, TouchableOpacity, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
-export default function WelcomeScreen() {
+export default function WelcomeScreen({ navigation }) {
   return (
     <View style={styles.container}>
       {/* Top Navigation Bar */}
-      <SafeAreaView style={styles.header}>
+      <SafeAreaView style={styles.header} edges={['top']}>
         <View style={styles.headerContent}>
           <Image
             source={require('../../assets/LV-Logo.png')}
@@ -52,7 +53,11 @@ export default function WelcomeScreen() {
           </View>
 
           {/* Action Button */}
-          <TouchableOpacity style={styles.button} activeOpacity={0.8}>
+          <TouchableOpacity 
+            style={styles.button} 
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('Pin')}
+          >
             <Text style={styles.buttonText}>Get Started!</Text>
           </TouchableOpacity>
 
@@ -68,7 +73,6 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#002D52', // Navy blue header
-    paddingTop: 40,
   },
   headerContent: {
     flexDirection: 'row',
