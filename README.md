@@ -1,7 +1,3 @@
-Based on the repository provided, here is a professional `README.md` file tailored for the **LV_Lost-n-Found-Mobile** project. This documentation focuses on the application's core functionality, technical stack, and security features.
-
----
-
 # LV Lost N Found Mobile
 
 A dedicated mobile application designed for the **La Verdad** community to streamline the process of reporting and retrieving lost items. This application provides a centralized platform for students and staff to post found items, search for lost belongings, and securely manage claims.
