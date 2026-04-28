@@ -16,28 +16,36 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // 1. Import AsyncStorage
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { postData } from '../api';
+import ErrorPinModal from './ErrorPinModal';
+import { colors, gradients } from '../theme';
 
 export default function PinScreen({ navigation }) {
   const [isPinVisible, setIsPinVisible] = useState(false);
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showError, setShowError] = useState(false);
 
   const handleProceed = async () => {
     if (!pin) {
-      Alert.alert('Error', 'Please enter a PIN.');
+      setShowError(true);
+      return;
+    }
+
+    if (pin.length < 4 || pin.length > 10) {
+      setShowError(true);
       return;
     }
 
     setLoading(true);
     try {
-      // 2. Capture the response from the backend
+      // Capture the response from the backend
       const response = await postData('/api/auth/verify-pin', { pin });
 
       console.log("Login Success:", response);
 
-      // 3. CRITICAL: Save the token to local storage. 
+      // Save the token to local storage. 
       // We check multiple common key names just in case your backend uses a different one!
       let token = response.auth_token || response.token || response.access_token || response.data?.token || response.user?.token;
 
@@ -49,15 +57,17 @@ export default function PinScreen({ navigation }) {
       if (token) {
         await AsyncStorage.setItem('userToken', token);
 
-        // Optional: Save user name if you want to show "Welcome, [Name]"
         if (response.user_name) {
           await AsyncStorage.setItem('userName', response.user_name);
         }
 
+        const isAdminUser = response.is_admin || response.user?.is_admin || response.role === 'admin';
+        await AsyncStorage.setItem('isAdmin', isAdminUser ? 'true' : 'false');
+
         // ALWAYS save the raw PIN.
         await AsyncStorage.setItem('userPin', pin);
         
-        // Navigate to dashboard ONLY if we have a token
+        // Navigate to dashboard ONLY if we have a token 
         navigation.navigate('Dashboard');
       } else {
         console.log("Backend Response missing token:", response);
@@ -69,8 +79,11 @@ export default function PinScreen({ navigation }) {
       }
 
     } catch (error) {
-      console.error("Verification Error:", error);
-      Alert.alert('Verification Failed', error.message || 'Invalid PIN.');
+      // Only log the error if it's not a 401 (which is expected for an invalid PIN)
+      if (error.message && !error.message.includes('401')) {
+        console.error("Verification Error:", error);
+      }
+      setShowError(true);
     } finally {
       setLoading(false);
     }
@@ -83,7 +96,7 @@ export default function PinScreen({ navigation }) {
         style={{ flex: 1 }}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <LinearGradient colors={['#E0EAFC', '#3f6b8e']} style={styles.gradient}>
+          <LinearGradient colors={gradients.main} style={styles.gradient}>
 
             <View style={styles.headerContent}>
               <Image
@@ -100,7 +113,7 @@ export default function PinScreen({ navigation }) {
                 <View style={styles.blueShape} />
                 <View style={styles.circleImageWrapper}>
                   <Image
-                    source={require('../../assets/school.png')}
+                    source={require('../../assets/LV-Logo.png')}
                     style={styles.campusImage}
                   />
                 </View>
@@ -138,14 +151,14 @@ export default function PinScreen({ navigation }) {
               </View>
 
               <TouchableOpacity
-                style={styles.proceedButton}
+                style={[styles.proceedButton, pin.length > 0 && styles.proceedButtonFilled]}
                 onPress={handleProceed}
-                disabled={loading}
+                disabled={loading || pin.length === 0}
               >
                 {loading ? (
-                  <ActivityIndicator color="#003366" />
+                  <ActivityIndicator color={pin.length > 0 ? "#FFF" : "#003366"} />
                 ) : (
-                  <Text style={styles.proceedText}>Proceed</Text>
+                  <Text style={[styles.proceedText, pin.length > 0 && styles.proceedTextFilled]}>Proceed</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -153,49 +166,34 @@ export default function PinScreen({ navigation }) {
           </LinearGradient>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
+
+      <ErrorPinModal 
+        visible={showError} 
+        onClose={() => setShowError(false)} 
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#002D52' },
-  headerContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10, backgroundColor: '#002D52' },
+  container: { flex: 1, backgroundColor: colors.primary },
+  headerContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10, backgroundColor: colors.primary },
   logoSmall: { width: 30, height: 30, marginRight: 10, borderRadius: 15 },
-  headerTitle: { color: '#FFF', fontSize: 14, fontWeight: 'bold' },
+  headerTitle: { color: colors.textWhite, fontSize: 14, fontWeight: 'bold' },
   gradient: { flex: 1 },
   content: { flex: 1, alignItems: 'center', paddingHorizontal: 40, justifyContent: 'center' },
-  imageContainer: { width: 180, height: 180, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  blueShape: { width: 140, height: 140, backgroundColor: '#003366', borderRadius: 40, transform: [{ rotate: '15deg' }] },
-  circleImageWrapper: { position: 'absolute', top: 5, right: -5, width: 110, height: 110, borderRadius: 55, borderWidth: 4, borderColor: '#FFEA00', overflow: 'hidden' },
+  imageContainer: { width: 250, height: 250, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  blueShape: { width: 180, height: 180, backgroundColor: colors.primary, borderRadius: 50, transform: [{ rotate: '15deg' }] },
+  circleImageWrapper: { position: 'absolute', top: 20, right: 10, width: 130, height: 130, borderRadius: 65, borderWidth: 4, borderColor: colors.gold, overflow: 'hidden' },
   campusImage: { width: '100%', height: '100%' },
   textContainer: { alignItems: 'center', marginBottom: 25 },
-  mainTitle: { fontSize: 24, fontWeight: '900', color: '#003366', textAlign: 'center', marginBottom: 10 },
-  subtitle: { fontSize: 13, color: '#333', textAlign: 'center', lineHeight: 18 },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderRadius: 30,
-    width: '100%',
-    height: 50,
-    paddingHorizontal: 25,
-    marginBottom: 15,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-  },
-  input: { flex: 1, fontSize: 14, color: '#000' },
+  mainTitle: { fontSize: 24, fontWeight: '900', color: colors.primary, textAlign: 'center', marginBottom: 10 },
+  subtitle: { fontSize: 15, color: colors.textDark, textAlign: 'center', lineHeight: 22, fontWeight: '500' },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, borderRadius: 30, width: '100%', height: 50, paddingHorizontal: 25, marginBottom: 15, elevation: 5, shadowColor: colors.textDark, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3 },
+  input: { flex: 1, fontSize: 14, color: colors.textDark },
   eyeIcon: { paddingLeft: 10 },
-  proceedButton: {
-    width: '100%',
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: '#003366',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  proceedText: { color: '#003366', fontSize: 16, fontWeight: '600' },
+  proceedButton: { width: '100%', height: 50, borderRadius: 25, borderWidth: 2, borderColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
+  proceedButtonFilled: { backgroundColor: colors.primary },
+  proceedText: { color: colors.primary, fontSize: 16, fontWeight: '600' },
+  proceedTextFilled: { color: colors.textWhite },
 }); 

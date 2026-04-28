@@ -5,8 +5,10 @@ const BASE_URL = 'https://trial-v1-syv7.onrender.com';
 const getAuthHeaders = async () => {
   const rawToken = await AsyncStorage.getItem('userToken');
   const token = (rawToken && rawToken !== 'undefined' && rawToken !== 'null') ? rawToken.trim() : null;
+  const isAdmin = await AsyncStorage.getItem('isAdmin');
   const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (isAdmin === 'true') headers['X-Is-Admin'] = 'true';
   return headers;
 };
 
@@ -18,8 +20,8 @@ export const fetchData = async (endpoint) => {
   try { return JSON.parse(text); } catch { throw new Error('Received HTML instead of JSON.'); }
 };
 
-export const postData = async (endpoint, data) => {
-  const headers = await getAuthHeaders();
+export const postData = async (endpoint, data, options = {}) => {
+  const headers = { ...(await getAuthHeaders()), ...(options.headers || {}) };
   const response = await fetch(`${BASE_URL}${endpoint}`, {
     method: 'POST',
     headers,

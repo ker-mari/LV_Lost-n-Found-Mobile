@@ -14,11 +14,15 @@ import {
     Modal,
     FlatList
 } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { postData } from '../api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import CancelConfirmationModal from './CancelConfirmationModal';
+import MissingFieldsModal from './MissingFieldsModal';
+import ChangesSavedModal from './ChangesSavedModal';
 
 const CATEGORIES = [
     'Personal Belongings', 'School Supplies', 'Clothing', 'Accessories',
@@ -42,11 +46,16 @@ const VALUABLE_CATEGORIES = [
 const getCurrentDateTime = () => {
     const now = new Date();
     const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const month = monthNames[now.getMonth()];
     const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
+    let hours = now.getHours();
     const minutes = String(now.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}`;
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours || 12; // the hour '0' should be '12'
+    const strHours = String(hours).padStart(2, '0');
+    return `${month} ${day}, ${year} at ${strHours}:${minutes} ${ampm}`;
 };
 
 export default function HandOverForm({ navigation }) {
@@ -54,22 +63,29 @@ export default function HandOverForm({ navigation }) {
         finderName: '',
         finderId: '',
         gradeCourseRole: '',
-        category: 'Item',
-        location: 'Location',
+        category: 'Select Item Category',
+        location: 'Select Location',
         customLocation: '',
         date: getCurrentDateTime(),
-        description: ''
+        description: '',
+        image: null,
     });
     const [errors, setErrors] = useState({});
     const [showCategoryModal, setShowCategoryModal] = useState(false);
     const [showLocationModal, setShowLocationModal] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [showErrorModal, setShowErrorModal] = useState(false);
     const [adminName, setAdminName] = useState('Admin');
     
+    const [showCamera, setShowCamera] = useState(false);
+    const [capturedImage, setCapturedImage] = useState(null);
+    const [cameraRef, setCameraRef] = useState(null);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [date, setDate] = useState(new Date());
     const [mode, setMode] = useState('date');
     const [showPicker, setShowPicker] = useState(false);
+    const [permission, requestPermission] = useCameraPermissions();
 
     useEffect(() => {
         const loadAdminName = async () => {
@@ -88,7 +104,17 @@ export default function HandOverForm({ navigation }) {
         const currentDate = selectedValue || date;
         setDate(currentDate);
 
-        const formatted = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')} ${String(currentDate.getHours()).padStart(2, '0')}:${String(currentDate.getMinutes()).padStart(2, '0')}`;
+        const year = currentDate.getFullYear();
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const month = monthNames[currentDate.getMonth()];
+        const day = String(currentDate.getDate()).padStart(2, '0');
+        let hours = currentDate.getHours();
+        const minutes = String(currentDate.getMinutes()).padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours || 12;
+        const strHours = String(hours).padStart(2, '0');
+        const formatted = `${month} ${day}, ${year} at ${strHours}:${minutes} ${ampm}`;
         handleInputChange('date', formatted);
         setErrors(prev => ({...prev, date: false}));
 
@@ -115,6 +141,15 @@ export default function HandOverForm({ navigation }) {
         setShowPicker(true);
     };
 
+    const handleTakePhotoPress = async () => {
+        const cameraPermission = await requestPermission();
+        if (cameraPermission.granted) {
+            setShowCamera(true);
+        } else {
+            Alert.alert('Permission denied', 'Camera permission is needed to take photos.');
+        }
+    };
+
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
@@ -123,8 +158,8 @@ export default function HandOverForm({ navigation }) {
         formData.finderName.trim() !== '' &&
         formData.finderId.trim() !== '' &&
         formData.gradeCourseRole.trim() !== '' &&
-        formData.category !== 'Item' &&
-        formData.location !== 'Location' &&
+        formData.category !== 'Select Item Category' &&
+        formData.location !== 'Select Location' &&
         (formData.location !== 'Others:' || formData.customLocation.trim() !== '') &&
         formData.date.trim() !== '' &&
         formData.description.trim() !== '';
@@ -134,8 +169,8 @@ export default function HandOverForm({ navigation }) {
         if (!formData.finderName) newErrors.finderName = true;
         if (!formData.finderId) newErrors.finderId = true;
         if (!formData.gradeCourseRole) newErrors.gradeCourseRole = true;
-        if (formData.category === 'Item') newErrors.category = true;
-        if (formData.location === 'Location') newErrors.location = true;
+        if (formData.category === 'Select Item Category') newErrors.category = true;
+        if (formData.location === 'Select Location') newErrors.location = true;
         if (formData.location === 'Others:' && !formData.customLocation) newErrors.customLocation = true;
         if (!formData.date) newErrors.date = true;
         if (!formData.description) newErrors.description = true;
@@ -143,17 +178,37 @@ export default function HandOverForm({ navigation }) {
         setErrors(newErrors);
 
         if (Object.keys(newErrors).length > 0) {
-            Alert.alert("Missing Fields", "Please fill in all required fields indicated in red.");
+            setShowErrorModal(true);
             return;
         }
         
         setLoading(true);
         try {
+            // Build a clean payload with only the fields the API expects.
+            // This avoids sending extraneous data from the form state.
+            const localYear = date.getFullYear();
+            const localMonth = String(date.getMonth() + 1).padStart(2, '0');
+            const localDay = String(date.getDate()).padStart(2, '0');
+            const localHours = String(date.getHours()).padStart(2, '0');
+            const localMinutes = String(date.getMinutes()).padStart(2, '0');
+            const formattedForBackend = `${localYear}-${localMonth}-${localDay} ${localHours}:${localMinutes}:00`;
+
             const payload = {
-                ...formData,
+                finderName: formData.finderName,
+                finderId: formData.finderId,
+                gradeCourseRole: formData.gradeCourseRole,
+                category: formData.category,
                 location: formData.location === 'Others:' ? formData.customLocation : formData.location,
-                date_time: formData.date
+                description: formData.description,
+                date_time: formattedForBackend,
             };
+
+            // Conditionally add the image only if it's not a valuable item
+            // and if a valid, non-empty image string exists.
+            const isValuable = VALUABLE_CATEGORIES.includes(formData.category);
+            if (!isValuable && formData.image) {
+                payload.image = formData.image;
+            }
 
             await postData('/api/items', payload);
             setShowSuccessModal(true);
@@ -183,11 +238,16 @@ export default function HandOverForm({ navigation }) {
                 </View>
             </SafeAreaView>
 
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={{ flex: 1 }}
-            >
-                <ScrollView contentContainerStyle={styles.scrollContent}>
+            <View style={styles.solidBackground}>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1 }}
+                >
+
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+                        <Text style={styles.backText}>Back</Text>
+                    </TouchableOpacity>
                     <Text style={styles.pageTitle}>HAND OVER FORM</Text>
 
                     {/* Main Form Card */}
@@ -249,12 +309,13 @@ export default function HandOverForm({ navigation }) {
                                 <Text style={styles.subLabel}>(Kategorya ng item){"\n"}</Text>
                 
                                 <TouchableOpacity 
-                                    style={[styles.input, {justifyContent: 'center'}, errors.category && styles.inputError]} 
+                                    style={[styles.input, {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}, errors.category && styles.inputError]} 
                                     onPress={() => setShowCategoryModal(true)}
                                 >
-                                    <Text style={{color: formData.category === 'Item' ? '#C7C7CD' : '#333', fontSize: 11}} numberOfLines={1}>
+                                    <Text style={{color: formData.category === 'Select Item Category' ? '#C7C7CD' : '#333', fontSize: 11, flex: 1}} numberOfLines={1}>
                                         {formData.category}
                                     </Text>
+                                    <Ionicons name="chevron-down" size={14} color="#999" />
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -264,12 +325,13 @@ export default function HandOverForm({ navigation }) {
                                 <Text style={styles.label}>Location Found <Text style={styles.required}>*</Text></Text>
                                 <Text style={styles.subLabel}>(Lokasyon kung saan nakita)</Text>
                                 <TouchableOpacity 
-                                    style={[styles.input, {justifyContent: 'center'}, errors.location && styles.inputError]} 
+                                    style={[styles.input, {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}, errors.location && styles.inputError]} 
                                     onPress={() => setShowLocationModal(true)}
                                 >
-                                    <Text style={{color: formData.location === 'Location' ? '#C7C7CD' : '#333', fontSize: 11}} numberOfLines={1}>
+                                    <Text style={{color: formData.location === 'Select Location' ? '#C7C7CD' : '#333', fontSize: 11, flex: 1}} numberOfLines={1}>
                                         {formData.location}
                                     </Text>
+                                    <Ionicons name="chevron-down" size={14} color="#999" />
                                 </TouchableOpacity>
                                 
                                 {formData.location === 'Others:' && (
@@ -316,8 +378,16 @@ export default function HandOverForm({ navigation }) {
                                     <View style={styles.photoDisabledNote}>
                                         <Text style={styles.photoDisabledText}>Note: Photo not allowed for valuable items.</Text>
                                     </View>
+                                ) : capturedImage ? (
+                                    <View>
+                                        <Image source={{ uri: capturedImage }} style={styles.imagePreview} />
+                                        <TouchableOpacity style={[styles.photoButton, {marginTop: 8}]} onPress={handleTakePhotoPress}>
+                                            <Ionicons name="camera-reverse-outline" size={20} color="#0056A0" />
+                                            <Text style={styles.photoButtonText}>Retake Photo</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 ) : (
-                                    <TouchableOpacity style={styles.photoButton}>
+                                    <TouchableOpacity style={styles.photoButton} onPress={handleTakePhotoPress}>
                                         <Ionicons name="camera-outline" size={20} color="#0056A0" />
                                         <Text style={styles.photoButtonText}>Take Photo</Text>
                                     </TouchableOpacity>
@@ -329,7 +399,7 @@ export default function HandOverForm({ navigation }) {
 
                         {/* Footer Buttons */}
                         <View style={styles.footerRow}>
-                            <TouchableOpacity style={styles.cancelButton} onPress={() => navigation?.goBack()}>
+                            <TouchableOpacity style={styles.cancelButton} onPress={() => setShowCancelModal(true)}>
                                 <Text style={styles.cancelText}>Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity 
@@ -347,12 +417,16 @@ export default function HandOverForm({ navigation }) {
 
                     </View>
                 </ScrollView>
-            </KeyboardAvoidingView>
+                </KeyboardAvoidingView>
+            </View>
 
             {/* Category Dropdown Modal */}
             <Modal visible={showCategoryModal} transparent={true} animationType="fade">
                 <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowCategoryModal(false)}>
                     <View style={styles.dropdownMenu}>
+                    <TouchableOpacity style={{ alignSelf: 'flex-end', paddingBottom: 5, paddingRight: 5 }} onPress={() => setShowCategoryModal(false)}>
+                        <Ionicons name="close" size={22} color="#666" />
+                    </TouchableOpacity>
                         <FlatList
                             data={CATEGORIES}
                             keyExtractor={(item) => item}
@@ -374,6 +448,9 @@ export default function HandOverForm({ navigation }) {
             <Modal visible={showLocationModal} transparent={true} animationType="fade">
                 <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowLocationModal(false)}>
                     <View style={styles.dropdownMenu}>
+                    <TouchableOpacity style={{ alignSelf: 'flex-end', paddingBottom: 5, paddingRight: 5 }} onPress={() => setShowLocationModal(false)}>
+                        <Ionicons name="close" size={22} color="#666" />
+                    </TouchableOpacity>
                         <FlatList
                             data={LOCATIONS}
                             keyExtractor={(item) => item}
@@ -392,34 +469,81 @@ export default function HandOverForm({ navigation }) {
                 </TouchableOpacity>
             </Modal>
 
-            {/* Success Modal */}
+            {/* Camera Modal */}
             <Modal
-                animationType="fade"
-                transparent={true}
-                visible={showSuccessModal}
-                onRequestClose={() => setShowSuccessModal(false)}
+                animationType="slide"
+                transparent={false}
+                visible={showCamera}
+                onRequestClose={() => setShowCamera(false)}
             >
-                <View style={styles.successOverlay}>
-                    <View style={styles.successModalContainer}>
-                        <View style={styles.successIconCircle}>
-                            <Text style={styles.successCheckMark}>✓</Text>
-                        </View>
-                        <Text style={styles.successMainTitle}>Item Handed Over Successfully</Text>
-                        <Text style={styles.successSubTitle}>
-                            Now waiting to be reunited with its owner!
-                        </Text>
-                        <TouchableOpacity 
-                            style={styles.successCloseButton}
-                            onPress={() => {
-                                setShowSuccessModal(false);
-                                if (navigation) navigation.goBack();
-                            }}
-                        >
-                            <Text style={styles.successButtonText}>Close</Text>
+                <CameraView 
+                    style={{ flex: 1 }} 
+                    facing="back"
+                    ref={ref => setCameraRef(ref)}
+                    ratio="16:9"
+                >
+                    <View style={styles.cameraContainer}>
+                        <TouchableOpacity style={styles.cameraCloseButton} onPress={() => setShowCamera(false)}>
+                            <Ionicons name="close" size={35} color="white" />
                         </TouchableOpacity>
+                        <TouchableOpacity style={styles.cameraButton} onPress={async () => {
+                            if (cameraRef) {
+                                try {
+                                   
+                                    let photo = await cameraRef.takePictureAsync({ quality: 0.1, base64: true });
+                                    
+                                    if (photo && photo.base64) {
+                                        
+                                        const cleanBase64 = photo.base64.replace(/[\r\n]+/g, '');
+                                        
+                        
+                                        const formattedBase64 = `data:image/jpeg;base64,${cleanBase64}`;
+                                        
+                                        setCapturedImage(photo.uri); // Only set URI if we have valid base64
+                                        handleInputChange('image', formattedBase64);
+                                    } else {
+                                        setCapturedImage(null); // Clear image preview
+                                        handleInputChange('image', null); // Ensure formData.image is null
+                                        Alert.alert("Image Capture Failed", "Could not capture a valid image. Please try again.");
+                                    }
+                                } catch (error) {
+                                    console.error("Camera capture error:", error);
+                                    setCapturedImage(null);
+                                    handleInputChange('image', null);
+                                    Alert.alert("Camera Error", "Failed to capture image. Please try again or check camera permissions.");
+                                } finally {
+                                    setShowCamera(false);
+                                }
+                            }
+                        }} />
                     </View>
-                </View>
+                </CameraView>
             </Modal>
+
+            {/* Cancel Confirmation Modal */}
+            <CancelConfirmationModal 
+                visible={showCancelModal}
+                onStay={() => setShowCancelModal(false)}
+                onCancel={() => {
+                    setShowCancelModal(false);
+                    navigation.goBack();
+                }}
+            />
+
+            <MissingFieldsModal
+                visible={showErrorModal}
+                onClose={() => setShowErrorModal(false)}
+            />
+
+            <ChangesSavedModal
+                visible={showSuccessModal}
+                title="Item Handed Over!"
+                subtitle="Now waiting to be reunited with its owner!"
+                onContinue={() => {
+                    setShowSuccessModal(false);
+                    if (navigation) navigation.replace('Dashboard');
+                }}
+            />
 
             {/* iOS Date/Time Picker Modal */}
             {showPicker && Platform.OS === 'ios' && (
@@ -452,32 +576,34 @@ export default function HandOverForm({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#003366' },
+    container: { flex: 1 }, 
+    solidBackground: { flex: 1, backgroundColor: '#003b6f', paddingBottom: 20, justifyContent: 'center' },
     header: { backgroundColor: '#002D52' },
-    headerContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10 },
+    headerContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10 },
     logoSmall: { width: 30, height: 30, marginRight: 10, borderRadius: 15 },
-    headerTitle: { color: '#FFF', fontSize: 13, fontWeight: 'bold' },
+    headerTitle: { color: '#FFF', fontSize: 14, fontWeight: 'bold' },
 
-    scrollContent: { paddingBottom: 40 },
-    pageTitle: { color: '#FFF', fontSize: 22, fontWeight: '900', textAlign: 'center', marginVertical: 25 },
+    scrollContent: { paddingHorizontal: 15, paddingVertical: 15 },
+    backButton: { backgroundColor: '#4A6A8A', paddingHorizontal: 30, paddingVertical: 8, borderRadius: 12, alignSelf: 'flex-start', marginTop: 15 },
+    backText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
+    pageTitle: { color: '#FFF', fontSize: 22, fontWeight: '900', textAlign: 'center', marginVertical: 12 },
 
     card: {
         backgroundColor: '#FFF',
-        marginHorizontal: 15,
         borderRadius: 30,
-        padding: 20,
-        minHeight: 600,
+        padding: 15,
+        paddingTop: 25,
     },
-    formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15 },
+    formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
     sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#004A8D' },
     sectionSubtitle: { fontSize: 12, color: '#999', fontStyle: 'italic' },
 
     onDutyBadge: { backgroundColor: '#98D8E9', padding: 8, borderRadius: 5, maxWidth: '45%' },
     onDutyText: { fontSize: 10, fontWeight: 'bold', color: '#003366' },
 
-    divider: { height: 1, backgroundColor: '#EEE', marginVertical: 15 },
+    divider: { height: 1, backgroundColor: '#EEE', marginVertical: 8 },
 
-    row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
+    row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
     inputGroup: { width: '48%' },
     label: { fontSize: 12, fontWeight: 'bold', color: '#333' },
     required: { color: 'red' },
@@ -493,7 +619,7 @@ const styles = StyleSheet.create({
         color: '#333',
     },
     inputError: { borderColor: '#FF4D4D', backgroundColor: '#FFF0F0' },
-    textArea: { height: 100, textAlignVertical: 'top', paddingTop: 10 },
+    textArea: { height: 70, textAlignVertical: 'top', paddingTop: 8 },
 
     photoButton: {
         flexDirection: 'row',
@@ -508,13 +634,19 @@ const styles = StyleSheet.create({
     photoButtonText: { color: '#0056A0', fontWeight: 'bold', marginLeft: 8, fontSize: 12 },
     photoDisabledNote: { backgroundColor: '#F0F0F0', padding: 8, borderRadius: 8, marginTop: 10 },
     photoDisabledText: { fontSize: 10, color: '#666', fontStyle: 'italic', textAlign: 'center' },
+    imagePreview: {
+        width: '100%',
+        height: 150,
+        borderRadius: 8,
+        resizeMode: 'cover',
+    },
     
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)', justifyContent: 'center', alignItems: 'center', padding: 20 },
     dropdownMenu: { backgroundColor: '#FFF', width: '80%', maxHeight: '60%', borderRadius: 15, padding: 10, elevation: 5 },
     dropdownItem: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#EEE' },
     dropdownItemText: { fontSize: 14, color: '#333', textAlign: 'center' },
 
-    footerRow: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 20 },
+    footerRow: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 10 },
     cancelButton: {
         borderWidth: 2,
         borderColor: '#000',
@@ -534,6 +666,15 @@ const styles = StyleSheet.create({
     iosPickerContainer: { backgroundColor: '#FFF', paddingBottom: 20 },
     iosPickerHeader: { flexDirection: 'row', justifyContent: 'flex-end', padding: 15, borderBottomWidth: 1, borderColor: '#EEE' },
     iosPickerDone: { color: '#007AFF', fontWeight: 'bold', fontSize: 16 },
+
+    // Error Modal Styles
+    errorModalContainer: { width: '85%', backgroundColor: 'white', borderRadius: 30, paddingVertical: 35, paddingHorizontal: 20, alignItems: 'center', elevation: 5 },
+    errorIconCircle: { width: 60, height: 60, borderRadius: 30, borderWidth: 4, borderColor: '#d31a1a', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+    errorIconText: { color: '#d31a1a', fontSize: 35, fontWeight: 'bold' },
+    errorMainTitle: { fontSize: 20, fontWeight: 'bold', color: '#000', marginBottom: 10 },
+    errorSubTitle: { fontSize: 13, color: '#666', textAlign: 'center', marginBottom: 25 },
+    errorCloseButton: { backgroundColor: '#d31a1a', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 25 },
+    errorButtonText: { color: '#FFF', fontSize: 15, fontWeight: 'bold' },
 
     // Success Modal Styles
     successOverlay: {
@@ -572,4 +713,23 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     successButtonText: { color: 'white', fontSize: 16, fontWeight: '600' },
+
+    // Camera Styles
+    cameraContainer: {
+        flex: 1,
+        backgroundColor: 'transparent',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+    },
+    cameraButton: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        borderWidth: 4,
+        borderColor: 'white',
+        backgroundColor: 'transparent',
+        marginBottom: 40,
+    },
+    cameraCloseButton: { position: 'absolute', top: 40, right: 20 },
 });

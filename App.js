@@ -14,6 +14,7 @@ import ClaimForm from './src/screens/ClaimItemsForm';
 import ItemsToClearScreen from './src/screens/ItemsToBeClearedScreen';
 import ApprovalQueuesScreen from './src/screens/ApprovalQueuesScreen';
 import HistoryPage from './src/screens/HistoryScreen';
+import SplashScreen from './src/screens/SplashScreen';
 
 const Stack = createStackNavigator();
 
@@ -22,10 +23,11 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName="Welcome" // Change this to "Welcome" when you're ready to launch
-          screenOptions={{ headerShown: false }} // Hides the default white header
+          initialRouteName="Splash"
+          screenOptions={{ headerShown: false }}
         >
-          <Stack.Screen name="Welcome" component={WelcomeScreen} />
+          <Stack.Screen name="Splash" component={SplashScreen} />
+          <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ animation: 'fade' }} />
           <Stack.Screen name="Pin" component={PinScreen} />
           <Stack.Screen name="Dashboard" component={DashboardScreen} />
           <Stack.Screen name="HandOver" component={HandOverForm} />

@@ -4,7 +4,7 @@
     "slug": "LV-lost-n-found-Mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/LV-Logo.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -12,7 +12,10 @@
       "backgroundColor": "#ffffff"
     },
     "extra": {
-      "apiUrl": "https://trial-v1-syv7.onrender.com"
+      "apiUrl": "https://trial-v1-syv7.onrender.com",
+      "eas": {
+        "projectId": "804e5ecf-38b0-4b5a-8d9c-898b94b7d65f"
+      }
     },
     "ios": {
       "supportsTablet": true
@@ -23,13 +26,30 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.lv.lostnfound",
+      "androidStatusBar": {
+        "barStyle": "light-content",
+        "backgroundColor": "#002D52"
+      },
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to take photos of found items."
+        }
+      ],
+      "expo-font"
     ]
   }
 }
